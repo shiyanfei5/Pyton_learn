@@ -31,9 +31,15 @@ class MyQueue(object):
             #占用该锁，防止有其他线程写入
             return len(self._queue)
 
+    def put(self,value,block=True, timeout=None):
+        with self.get_lock:
+            pass
+
     def join(self):
         pass
 
     def task_done(self):
         pass
 
+if __name__ == '__main__':
+    pass
