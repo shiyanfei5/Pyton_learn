@@ -1,8 +1,8 @@
 #通过queue的方式进行线程间同步
 
 
-
-from thread_learn.MyQueue import MyQueue as Queue
+#
+# from thread_learn.MyQueue import MyQueue as Queue
 import time
 import threading
 
