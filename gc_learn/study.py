@@ -6,14 +6,18 @@ import time
 
 class A(object):
     def __init__(self,value):
-        self.value = value
+        self.value_1 =
+        self.value_2 =
     def __del__(self):
         print("xxx")
 
 
 def fun(arg):
     print(arg)
-
+    a=A(5)
+    b = a.value
+    del a
+    print("test")
 
 
 def test():
@@ -25,12 +29,13 @@ def test():
 if  __name__ == '__main__':
     # test()
     # print("over")
-    while True:
-        work_item = A(5)
-        if work_item is not None:
-            print(A)
-            # Delete references to object. See issue16284
-            #del work_item
-            time.sleep(5)
-            print("over")
-            continue
+    # while True:
+    #     work_item = A(5)
+    #     if work_item is not None:
+    #         print(A)
+    #         # Delete references to object. See issue16284
+    #         #del work_item
+    #         time.sleep(5)
+    #         print("over")
+    #         continue
+    b = fun(3)
