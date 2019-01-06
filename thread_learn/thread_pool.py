@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor, Future , as_completed ,wait
 
 
 import time
-
+import threading
 def get_html(times):
     time.sleep(times)
     print(" get page {} success".format(times))
@@ -11,8 +11,7 @@ def get_html(times):
 
 
 executor = ThreadPoolExecutor(max_workers = 2)
-
-urls = [4,10,15]
+urls = [4,8,10]
 all_task = [executor.submit(get_html, (url)) for url in urls ]
 #submit返回一个Future对象
 # print(all_task[0].done()) #判断该任务是否执行成功，非阻塞
@@ -23,10 +22,11 @@ all_task = [executor.submit(get_html, (url)) for url in urls ]
 #2.当一个线程完成的是我们主线程能立即知道
 #3.futurens可以让多线程与多进程接口一一致
 #wait(all_task)#等待所有futures执行完
-for item in all_task:
-    item.cancel()
-for future in as_completed(all_task):
-    #data = future.result()
-    print("get {} page".format('1'))
+# for item in all_task:
+#     item.cancel()
+# for future in as_completed(all_task):
+#     #data = future.result()
+#     print("get {} page".format('1'))
+#print(all_task[0].result())
 
-print("over")
+del executor

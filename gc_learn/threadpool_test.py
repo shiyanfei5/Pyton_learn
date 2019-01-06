@@ -1,17 +1,20 @@
 from gc_learn.threadpool import MyThreadPool
 # from concurrent.futures import as_completed
 
-
+import threading
 import time
 
 def get_html(times):
     time.sleep(times)
-    print(" get page {} success".format(times))
+    print(" get page {} success ---{}-thread".format(times,threading.get_ident()))
     return times
 
 
 executor = MyThreadPool(max_workers = 2)
-a = executor.submit(get_html, 4)
+# executor2 = MyThreadPool(max_workers = 3)
+urls = [1,2,3,4,5,6,7,8,9]
+all_task = [executor.submit(get_html, (url)) for url in urls ]
+# all_task2 = [executor2.submit(get_html, (url)) for url in urls ]
 # urls = [4]
 # all_task = [executor.submit(get_html, (url)) for url in urls ]
 # #submit返回一个Future对象
@@ -30,5 +33,5 @@ a = executor.submit(get_html, 4)
 # # for future in as_completed(all_task):
 # #     data = future.result()
 # #     #print("get {} page".format('1'))
-
-print("over")
+del executor
+# print('xx {}'.format(all_task[4].result() ) )

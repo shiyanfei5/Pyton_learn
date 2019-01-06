@@ -1,41 +1,60 @@
 import threading
-import gc
-
 import time
+import gc
+import weakref
+import time
+
+
+#
+# import atexit
+# def _python_exit():
+#     print("called python exit")
+#     print(threading.active_count())
+#     print('exit thread is {}'.format(threading.get_ident()))
+
+# atexit.register(_python_exit)
+# gc.set_debug(gc.DEBUG_STATS|gc.DEBUG_LEAK)
+
+def fun(ref,value):
+    print('func thread is {}'.format(threading.get_ident()))
+    # while True:
+    #     print(value)
+    #     if value[0] is not None:
+    #         time.sleep(1)
+    #         print("执行中")
+    #         continue
+    #     else:
+    #         time.sleep(5)
+    #         print("over")
+    #         break
+
+
 
 
 class A(object):
     def __init__(self,value):
-        self.value_1 =
-        self.value_2 =
+        self.value = [value]
     def __del__(self):
-        print("xxx")
+        print(" object() is deleted")
+
+    def Impl(self, type = True):
+
+        def callback(a,b = self.value):
+            b[0] = None
+            print("callback is called--value is {}".format(b))
 
 
-def fun(arg):
-    print(arg)
-    a=A(5)
-    b = a.value
-    del a
-    print("test")
+        thread_1 = threading.Thread( target = fun , args=(weakref.ref(self, callback), self.value))
+        thread_1.setDaemon(type)
+        thread_1.start()
 
 
-def test():
-    a = A(5)
-    thread_1 = threading.Thread( target = fun , args=(a,))
-    thread_1.start()
 
 
-if  __name__ == '__main__':
-    # test()
-    # print("over")
-    # while True:
-    #     work_item = A(5)
-    #     if work_item is not None:
-    #         print(A)
-    #         # Delete references to object. See issue16284
-    #         #del work_item
-    #         time.sleep(5)
-    #         print("over")
-    #         continue
-    b = fun(3)
+print('main thread is {}'.format(threading.get_ident()) )
+a = A(1)
+a.Impl(False)
+
+time.sleep(5)
+del a
+print(threading.active_count())

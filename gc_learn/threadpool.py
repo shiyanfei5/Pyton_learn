@@ -1,39 +1,137 @@
-from threading import Lock
+from threading import Lock,Condition
 from queue import Queue
 import sys
 import threading
 import weakref
 import itertools
 from gc_learn.myfuture import Future
+import atexit
+
+
+EXECUTOR = set()
+
+def cleanExecutor():
+    for item in EXECUTOR:
+        for i in range(len(item._thread)):
+            item._deque.put(None)
+        for t in item._thread:
+            t.join()
+    print('exit over')
+
+
+
+atexit.register(cleanExecutor)
+
 
 def worker(ref_excutor , workitem_queue):
     """
     本函数的功能是让调用此函数的线程去任务队列中取任务
     调用者：可能是不同线程
     公共资源：线程池的_deque队列,其本身已经线程安全
-    需要考虑何时退出---拿到None退出
+    需要考虑何时退出---拿到None退出False
     """
     while True:
-        excutor = ref_excutor()
-        print(sys.getrefcount(excutor)-1)
+
         workitem = workitem_queue.get(block=True)   # 为空则阻塞
-        print(workitem)
         if workitem is not None:
             workitem.run()  # 运行该任务
-            break
+            continue
         # 当线程拿到None后，在以下条件退出
         #   1.线程池对象被gc回收了-----即弱引用返回None
         #   2.线程池主动调用
         print("chulaile")
+        excutor = ref_excutor()
+
+        # if (excutor is None) or ( excutor.shutdown is True):
+        #     workitem_queue.put(None)
+        #     return
+        # del excutor
+        return
 
 
-        if ( excutor is None) or ( ref_excutor.shutdown is True):
-            workitem_queue.put(None)
-            return
+##################################################################
+class Myfuture(object):
+    """
+    future是一种设计思想，其代表了未来的异步计算结果，并提供接口给一些方法，一个future对象
+    包含了如下的几种必要设计：
+    1._state ：任务状态(pending,finished,cancel,cancelled_and_notified
+    2._result:任务结果
+    3._condition：由于future代表一个结果，所以其使用者包含 1.生产者线程（任务线程）
+                2.消费者线程（获取结果线程），需要线程安全
+    4._exception:任务过程中的异常
+    5._waiters:外部接口。。这个最后再写
+    """
 
+    def __init__(self):
+        self._state = 'PENDING'
+        self._result = None
+        self._exception = None
+        self._waiters = []
+        self._condition = Condition()  # 使用condition锁，因为要wait等待条件
 
+    def set_exception(self, e):
+        """
+        设置exception结果
+        :param e:
+        :return:
+        """
+        with self._condition:  # 拿锁
+            self._result = e
+            for waiter in self._waiters:
+                pass  # 对waiter的处理
+            self._condition.notify_all()
 
+    def set_result(self, re):
+        """
+        给future设置结果。。。由于future对象需要考虑线程安全（由不同线程访问），所以修改
+        公共资源的操作需要带锁
+        """
+        with self._condition:  # 拿锁
+            self._result = re
+            for waiter in self._waiters:
+                pass  # 对waiter的处理
+            self._condition.notify_all()
 
+    def set_running_or_notify_cancel(self):
+        with self._condition:
+            if self._state in ['PENDING']:
+                self._state = 'RUNNING'
+                return True
+            if self._state in ['CANCELLED']:
+                self._state = 'CANCELLED_AND_NOTIFIED'
+                for waiter in self._waiters:
+                    pass
+                return False
+
+    def result(self, timeout=None):
+        """
+        获取future结果，算是访问future对象。考虑线程安全，所以需要带锁
+        """
+        with self._condition:
+            # 线程安全的设计 ，使用while而不是if
+            # ['FINISHED','CANCELLED','CANCELLED_AND_NOTIFIED']:
+            while self._state in ['PENDING']:  # 需要注意此处用while
+                self._condition.wait(timeout)
+            else:
+                if self._exception:  # 存在异常
+                    raise self._exception
+                else:
+                    return self._result
+
+    def cancel(self):
+        """
+        取消获取future的操作
+        :return:
+        """
+        with self._condition:
+            # 线程安全的设计 ，使用while而不是if
+            # ['FINISHED','CANCELLED','CANCELLED_AND_NOTIFIED']:
+            if self._state in ['RUNNING', 'FINISHED']:
+                return False
+            if self._state in ['PENDING']:
+                self._state = 'CANCELLED'
+                self._condition.notify_all()
+            return True
 
 
 class MyThreadPool(object):
@@ -53,6 +151,7 @@ class MyThreadPool(object):
         # 用于存放开启的线程
         self._thread_name_prefix = (thread_name_prefix or
                                     ("ThreadPoolExecutor-%d" % self._counter()))
+        EXECUTOR.add(self)
 
     def submit(self,func,*arg,**kwarg):
         """
@@ -69,17 +168,16 @@ class MyThreadPool(object):
         with self._lock:
             if self._shutdown:
                 raise RuntimeError('cannot schedule new futures after shutdown')
-        future = Future() # future用来表示最后的结果
-        work = MyWorkItem(future,func,*arg,**kwarg)
+
+        work = MyWorkItem(func,*arg,**kwarg)
         # 不同线程都可以向同一个线程池中的同一个deque中submit任务
 
         # 向队列中添加任务，队列线程安全，支持并发没关系
         self._deque.put(work)
         # 之后管理 根据线程情况管理任务
-
         self._manage_thread_task()
-        print(sys.getrefcount(self) - 1)
-        return future # 返回一个future对象
+
+        return work._future # 返回一个future对象
 
     def _manage_thread_task(self):
         """
@@ -91,10 +189,10 @@ class MyThreadPool(object):
         3.公共资源：线程池对象中_thread，需要要拿到他的数量，并插入所以需要加锁
         """
         # 回调函数，线程池对象被回收后触发，来放入None
-        def wreak_ref_call(_,queue = Queue()):
+
+        def wreak_ref_call(_, queue=self._deque):
             print("进程池被收集----")
             queue.put(None)
-
 
         with self._lock:
             num = len(self._thread)
@@ -104,11 +202,9 @@ class MyThreadPool(object):
                     weakref.ref(self,wreak_ref_call) , self._deque
                 ))
 
-                t.daemon = False
+                t.daemon = True
                 t.start()
                 self._thread.append(t)
-
-
 
     def shutdown(self,wait=True):
         """
@@ -127,12 +223,15 @@ class MyThreadPool(object):
 
 
 class MyWorkItem(object):
-    def __init__(self, future, func, *arg, **kwarg):
-        self._future = future
+
+    future = Future
+
+    def __init__(self, func, *arg, **kwarg):
+
         self.fn = func
         self.arg = arg
         self.kwarg = kwarg
-
+        self._future = self.future()
 
     def run(self):
         if not self._future.set_running_or_notify_cancel():
@@ -147,10 +246,6 @@ class MyWorkItem(object):
             self = None
         else:
             self._future.set_result(result)
-
-class Myfuture(object):
-    def __init__(self):
-        pass
 
 
 

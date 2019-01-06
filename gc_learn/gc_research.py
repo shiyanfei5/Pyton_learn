@@ -58,31 +58,45 @@
 # Func4(it4)
 # #探究:1.何时引用技术会增加(作为函数参数,函数默认参数,类变量?)
 # #   2.何时回收
-import gc
-gc.set_debug(gc.DEBUG_STATS|gc.DEBUG_LEAK)
-def Test():
+# import gc
+# gc.set_debug(gc.DEBUG_STATS|gc.DEBUG_LEAK)
+# def Test():
+#
+#     import sys
+#     import time
+#     class A:
+#         #pass
+#          def __del__(self):
+#              print("collect A",self)
+#     class B:
+#         #pass
+#          def __del__(self):
+#              print("collect B",self)
+#
+#     #
+#     # gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_LEAK)
+#
+#     a = A()
+#     b = B()
+#
+#     c=A()
+#     d=A()
+#     time.sleep(1)
+#
+# gc.disable()
+# Test()
 
-    import sys
-    import time
-    class A:
-        #pass
-         def __del__(self):
-             print("collect A",self)
-    class B:
-        #pass
-         def __del__(self):
-             print("collect B",self)
+import weakref
+import sys
+class A():
+    def __del__(self):
+        print("被回收")
 
-    #
-    # gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_LEAK)
+def func(a):
+    print(a,"回调")
 
-    a = A()
-    b = B()
-
-    c=A()
-    d=A()
-    time.sleep(1)
-
-gc.disable()
-Test()
+a=A()
+print(sys.getrefcount(a)-1)
+b = weakref.ref(a,func)
+del a
 
