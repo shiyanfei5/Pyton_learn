@@ -7,7 +7,6 @@ import itertools
 from gc_learn.myfuture import Future
 import atexit
 
-
 EXECUTOR = set()
 
 def cleanExecutor():
@@ -18,9 +17,46 @@ def cleanExecutor():
             t.join()
     print('exit over')
 
+atexit.register( cleanExecutor)
 
 
-atexit.register(cleanExecutor)
+
+
+class _Waiter(object):
+    """
+    设计一个waiter等待器。其被放入future对象中，waiter对象内存放所有的完成futures。：
+    1.访问等待器的读取结果者：可以被等待器要求等待（event信号实现）,等待器中可存放所有的
+    2.future对象控制等待器event
+    """
+    def __init__(self):
+        self.con = threading.Condition() #对读取者控制
+        self.finished_futures = []  #给读取这结果集
+
+    def add_result(self,future):
+        with self.con:
+            self.finished_futures.append(future)
+            self.con.notify_all()
+
+
+    def add_exception(self,future):
+        with self.con:
+            self.finished_futures.append(future)
+            self.con.notify_all()
+
+    def add_cancelled(self,future):
+        with self.con:
+            self.finished_futures.append(future)
+            self.con.notify_all()
+
+
+
+def as_completed(fs):
+    
+
+
+
+
+
 
 
 def worker(ref_excutor , workitem_queue):
