@@ -4,7 +4,7 @@ import sys
 import threading
 import weakref
 import itertools
-from gc_learn.myfuture import Future
+
 import atexit
 
 EXECUTOR = set()
@@ -30,13 +30,12 @@ class _Waiter(object):
     """
     def __init__(self):
         self.con = threading.Condition() #对读取者控制
-        self.finished_futures = []  #给读取这结果集
+        self.finished_futures = []  #给读取结果集
 
     def add_result(self,future):
         with self.con:
             self.finished_futures.append(future)
             self.con.notify_all()
-
 
     def add_exception(self,future):
         with self.con:
@@ -48,10 +47,65 @@ class _Waiter(object):
             self.finished_futures.append(future)
             self.con.notify_all()
 
+    def get_finished(self):
+        """
+         本方法提供给waiter对象的读取者，用于获取finished的线程
+        非局部对象（公共资源）：waiter对象的finished_futures。。其可能被
+        其他线程操作，所以需要带锁
+        """
+        with self.con:
+            while self.finished_futures == []:
+                # 注意使用 while设计。。唤醒后还要再进行判断，不符合再睡
+                self.con.wait()
+
+            else:
+
+                result = self.finished_futures
+                self.finished_futures = []
+                return result
+
+    def install_future(self,fs):
+        '''
+        本方法提供给操作 future对象的生产者，用于将锁注册到多个future对象内.
+        需要注意 注册锁的时候future的状态可能是 已经运行完毕的
+        :param fs:
+        :return:
+        '''
+        for fut in fs:
+            # 拿上fs中的future
+            with fut._condition:    #拿锁防止被修改
+                fut._waiters.append(self)
+                #把 等待器放入所有的future对象中
+                if fut._state in ['CANCELLED_AND_NOTIFIED','FINISHED']:
+                    self.finished_futures.append(fut)
+
+
 
 
 def as_completed(fs):
-    
+    """
+    公共资源：future对象，但其已经设计的是线程安全
+     由于这个函数的设计思想是完成多少future返回多少future直到没有，所以
+    """
+    fs = set(fs)
+    waiter = _Waiter()
+    waiter.install_future(fs)
+    # waiter加载进入future
+    while True:
+
+        finish = waiter.get_finished()  #获取目前完成的future，队列
+        for re in finish:
+            yield re
+
+        fs = fs - set(finish)    #表示剩下的future
+
+        if list(fs) == []:      #为空后再进行读取被阻塞,所以要及时退出
+            return 0
+
+
+
+
+
 
 
 
@@ -114,7 +168,8 @@ class Myfuture(object):
         with self._condition:  # 拿锁
             self._result = e
             for waiter in self._waiters:
-                pass  # 对waiter的处理
+                waiter.add_result(self)
+                # 对waiter的处理,完成了放入等待器的finished队列
             self._condition.notify_all()
 
     def set_result(self, re):
@@ -125,7 +180,7 @@ class Myfuture(object):
         with self._condition:  # 拿锁
             self._result = re
             for waiter in self._waiters:
-                pass  # 对waiter的处理
+                waiter.add_result(self)
             self._condition.notify_all()
 
     def set_running_or_notify_cancel(self):
@@ -136,7 +191,7 @@ class Myfuture(object):
             if self._state in ['CANCELLED']:
                 self._state = 'CANCELLED_AND_NOTIFIED'
                 for waiter in self._waiters:
-                    pass
+                    waiter.add_result(self)
                 return False
 
     def result(self, timeout=None):
@@ -260,7 +315,7 @@ class MyThreadPool(object):
 
 class MyWorkItem(object):
 
-    future = Future
+    future = Myfuture
 
     def __init__(self, func, *arg, **kwarg):
 
