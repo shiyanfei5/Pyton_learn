@@ -5,8 +5,7 @@ import functools
 def unicode(a , _):
     return a
 
-reg_proname = r'CREATE\s+OR\s+REPLACE\s+((FUNCTION)|(PROCEDURE]))\s+(?P<name>\w+?.*?\w*?)\s*\('
-reg_perform = r'PERFORM\s+(?P<name>.*?)\s*\(.*\)'
+
 
 
 def check_type(file_name):
@@ -18,13 +17,13 @@ def check_type(file_name):
         content = f.read()
         coding = chardet.detect(bytes(content)).get('encodinge')
     try:
-        name = re.search(reg_proname,content,re.IGNORECASE).group('name')
+        name = re.search( r'CREATE\s+OR\s+REPLACE\s+((FUNCTION)|(PROCEDURE]))\s+(?P<name>\w+?.*?\w*?)\s*\(',content,re.IGNORECASE).group('name')
     except:
         name = 'table'
     depend = []
 
     if name != 'table':
-        for li in re.findall(reg_perform, content,re.IGNORECASE):
+        for li in re.findall(r'PERFORM\s+(?P<name>.*?)\s*\(.*\)', content,re.IGNORECASE):
             depend.append(li)
         ret_obj = SqlProcedure()
     return name,depend
@@ -42,7 +41,6 @@ class BaseFILE:
 
 
 class SqlTable(BaseFILE):
-
     def __init__(self , basefile ):
         self._basefile = basefile
 
@@ -50,6 +48,8 @@ class SqlTable(BaseFILE):
 
 
 class SqlProcedure(BaseFILE):
+    reg_pro = r'CREATE\s+OR\s+REPLACE\s+((FUNCTION)|(PROCEDURE]))\s+(?P<name>\w+?.*?\w*?)\s*\('
+    reg_check = r'PERFORM\s+(?P<name>.*?)\s*\(.*\)'
     """
     初始化Sql存储过程
     """
@@ -70,8 +70,10 @@ class SqlProcedure(BaseFILE):
         return '%s-%s'%(self._name,self.prioty)
 
     @classmethod
-    def _check_file(cls):
-        pass
+    def check_file(cls, file_content):
+        name = re.search(cls.reg_pro,file_content,re.IGNORECASE)
+        if name:
+            pass
 
 
 class ManagerSqlFile:
@@ -125,6 +127,7 @@ class ManagerSqlFile:
 
 
 
+
 class FileCreater:
     """
     统一封装文件检测接口
@@ -161,8 +164,7 @@ class FileCreater:
                     return reg_type(file_path,coding,result)
             return None
 
-    @classmethod
-    def
+
 
 
 
@@ -171,17 +173,17 @@ if __name__ == '__main__':
     li = []
     path = unicode(r'D:\0.12.1-190108-to肖耀\新建文本文档.txt','utf-8')
     a,b = check_type(path)
-    li.append( SqlProcedure( a,b ) )
-    path = unicode(r'D:\0.12.1-190108-to肖耀\新建文本文档2.txt', 'utf-8')
-    a, b = check_type(path)
-    li.append(SqlProcedure(a, b))
-    path = unicode(r'D:\0.12.1-190108-to肖耀\新建文本文档3.txt', 'utf-8')
-    a, b = check_type(path)
-    li.append(SqlProcedure(a, b))
-    path = unicode(r'D:\0.12.1-190108-to肖耀\新建文本文档4.txt', 'utf-8')
-    a, b = check_type(path)
-    li.append(SqlProcedure(a, b))
-
-    obj = ManagerSqlFile(li)
-    obj.depend_sort()
-    print(obj.procudure )
+    # li.append( SqlProcedure( a,b ) )
+    # path = unicode(r'D:\0.12.1-190108-to肖耀\新建文本文档2.txt', 'utf-8')
+    # a, b = check_type(path)
+    # li.append(SqlProcedure(a, b))
+    # path = unicode(r'D:\0.12.1-190108-to肖耀\新建文本文档3.txt', 'utf-8')
+    # a, b = check_type(path)
+    # li.append(SqlProcedure(a, b))
+    # path = unicode(r'D:\0.12.1-190108-to肖耀\新建文本文档4.txt', 'utf-8')
+    # a, b = check_type(path)
+    # li.append(SqlProcedure(a, b))
+    #
+    # obj = ManagerSqlFile(li)
+    # obj.depend_sort()
+    # print(obj.procudure )
