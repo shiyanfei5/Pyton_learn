@@ -11,14 +11,11 @@ ELK_MAIN = {
     'role':''
 }
 
-
-
-
-class ElkQuery():
+class ElkQuery:
     """
     调用大数据接口进行查询
     """
-    def __init__(self, ELK_CONFIG , flowid):
+    def __init__(self, ELK_CONFIG ):
 
         _username = ELK_CONFIG.get('username')
         _password = ELK_CONFIG.get('password')
@@ -28,7 +25,6 @@ class ElkQuery():
         _log_params = json.dumps({'username':_username,'password':_password})
         _res =  requests.post(_login_url, _log_params)
         _token = _res.headers.get('Authorization')
-        self.flowid = flowid
         self._base_url = ELK_CONFIG.get('base_url')
         self._headers = {'Authorization':_token,'signature':_signature,'role':_role,'USERNAME':_username,'content-type':'application/json'}
 
@@ -64,7 +60,7 @@ class ElkQuery():
     def qrysql(self,sqls,kvflag=None):
         qrysql_url = self._base_url + "/base-service/ddl/query"
         rst = requests.post(qrysql_url, json.dumps({'sqls':sqls, 'kvflag':kvflag}), headers = self._headers)
-        # print(rst.json())
+
         if rst.json().get('code') != 0:
             return {"code":400, "val":rst.json().get('msg')}
         else:

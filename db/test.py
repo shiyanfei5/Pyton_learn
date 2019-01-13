@@ -1,7 +1,7 @@
 #encoding:utf-8
 import os
 
-def _check_filetype(file, type=['SQL','XLSX']):
+def _check_filetype(file, type=['SQL']):
     '''
     type的内容请大写，用于检查文件类型
     '''
@@ -11,7 +11,7 @@ def _check_filetype(file, type=['SQL','XLSX']):
         return True
     return False
 
-def find_files(dir_path, file_check = None):
+def find_files(dir_path, file_check = _check_filetype):
     """
     迭代查找path目录下的所有sql文件目录，最终返回数据结构如下..广度优先
     ['文件1','文件2','文件3']

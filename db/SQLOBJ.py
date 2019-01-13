@@ -1,148 +1,109 @@
-import requests
+
 import chardet
 import re
-import functools
+import os
+
+
 def unicode(a , _):
     return a
 
 
 
 
-def check_type(file_name):
-    '''
-    检查file_name,然后查看其是否为那种类型的文件
-    '''
-    ret_obj = None
-    with open(file_name, 'r', encoding='utf-8') as f:
-        content = f.read()
-        coding = chardet.detect(bytes(content)).get('encodinge')
-    try:
-        name = re.search( r'CREATE\s+OR\s+REPLACE\s+((FUNCTION)|(PROCEDURE]))\s+(?P<name>\w+?.*?\w*?)\s*\(',content,re.IGNORECASE).group('name')
-    except:
-        name = 'table'
-    depend = []
-
-    if name != 'table':
-        for li in re.findall(r'PERFORM\s+(?P<name>.*?)\s*\(.*\)', content,re.IGNORECASE):
-            depend.append(li)
-        ret_obj = SqlProcedure()
-    return name,depend
-
-
-
 class BaseFILE:
 
-    def __init__(self,file_path,coding):
-        self._file = file_path
-        self._coding = coding
-        self._last_time = ''
-        self.do_time = ''
+    def __init__(self, kw ):
+        self._file =  kw.get('file')
+        self._coding = kw.get('coding')
+        self._operatetime = '999-999-99'
+        self._do_time = ''
+
+    def check_file(self,*arg,**kw):
+        '''
+        用于鉴别文件类型和信息，需要重载
+        '''
+        pass
 
 
+    def __repr__(self):
+        return '%s-%s-%s' %(self._file,self._coding,self._operatetime)
 
 class SqlTable(BaseFILE):
-    def __init__(self , basefile ):
-        self._basefile = basefile
 
+    reg_pro = r'CREATE\s+OR\s+REPLACE\s+((FUNCTION)|(PROCEDURE]))\s+(?P<name>\w+?.*?\w*?)\s*\('
+    reg_depend = r'PERFORM\s+(?P<name>.*?)\s*\(.*\)'
 
+    def __init__(self , kw ):
+        super().__init__(kw)
+        self._name = os.path.split(self._file)[-1]
+
+    @classmethod
+    def check_file(cls, file_content):
+        """
+        用于检测文件类型并返回相关其他信息返回None，则不是该类文件，否则为该类文件
+        """
+        name = re.search(cls.reg_pro,file_content,re.IGNORECASE)
+        if name:
+            return None
+        else:   #没搜索到
+            return {'pass': 'pass'}
 
 
 class SqlProcedure(BaseFILE):
+
     reg_pro = r'CREATE\s+OR\s+REPLACE\s+((FUNCTION)|(PROCEDURE]))\s+(?P<name>\w+?.*?\w*?)\s*\('
-    reg_check = r'PERFORM\s+(?P<name>.*?)\s*\(.*\)'
-    """
-    初始化Sql存储过程
-    """
-    def __init__(self, file_path, name, depend):
-        super().__init__(file_path) # 初始化父类
-        self._name = name
-        self._depend = depend   # 列表[]
+    reg_depend = r'PERFORM\s+(?P<name>.*?)\s*\(.*\)'
+
+    def __init__(self, kw):
+        super().__init__(kw) # 初始化父类
+        self._depend = kw.get('depend')
+        self._name = kw.get('name')
         self.prioty = 0
 
     def _add_prioty(self,num=1):
         self.prioty += num
 
     def _depand_add_prioty(self,pro):
+        """
+        依赖的pro的存储过程相加
+        """
         self._add_prioty(pro.prioty+1)
 
     def __repr__(self):
-        #return '%s-%s--%s'%(self._name,self._depend,self.prioty)
-        return '%s-%s'%(self._name,self.prioty)
+        return '%s-%s-%s' %(self._name,self.prioty,self._depend)
+
+
 
     @classmethod
     def check_file(cls, file_content):
+        """
+        用于检测文件类型并返回相关其他信息返回None，则不是该类文件，否则为该类文件
+        """
         name = re.search(cls.reg_pro,file_content,re.IGNORECASE)
+        depend = []
         if name:
-            pass
-
-
-class ManagerSqlFile:
-    def __init__(self, li):
-        self.table = []
-        self.procudure = li
-        self.inner_depend = {}
-
-    def __getitem__(self, item):
-        """
-         通过self['a']
-        """
-        for v in self.procudure:
-            if item == v._name:
-                return v
-        return None
-
-
-    def _get_prodepend(self , pro):
-        """
-        pro: 要查找的依赖的producer
-        """
-        li = []
-        for i in pro._depend:
-            result = self.__getitem__(i)
-
-            if result:
-                li.append(result)
-                result._depand_add_prioty(pro) #  加权，用于排序
-
-        return li
-
-
-    def _sort_pro(self):
-
-        def cmp(a,b):
-            if a.prioty < b.prioty:
-                return 1
-            elif a.prioty > b.prioty:
-                return -1
-            else:
-                return 0
-        self.procudure = list(sorted( self.procudure,key=functools.cmp_to_key(cmp)))
-
-    def depend_sort(self):
-        for item in self.procudure:
-            print(item)
-            self._get_prodepend(item)
-        self._sort_pro()
+            for li in re.findall(cls.reg_depend, file_content, re.IGNORECASE):
+                depend.append(li)
+            return  {'name':name.group('name'), 'depend': depend}
+        else:   #没搜索到
+            return None
 
 
 
 
- ''''
- 
- 提交'''
-class FileCreater:
+
+
+class FileFactory:
     """
-    统一封装文件检测接口
-
+    工厂，用于生成文件
     """
-    register_ftype = []  # 存放定义的文件类型对象,由生成类对象启动后注册进入
+    register_ftype = [SqlProcedure,SqlTable]  # 存放定义的文件类型对象,由生成类对象启动后注册进入
+    counter = 0
 
     @classmethod
     def _judge_file_type(cls , file_content, reg_ftype  ):
         """
-        :param file_content: file_content为file的内容
-        :param reg_ftype:
-        :return:
+        判断结果为None，则不在register里，否则在register_fytpe里
         """
         result = reg_ftype.check_file(file_content)
         if result == None:
@@ -152,19 +113,28 @@ class FileCreater:
 
     @classmethod
     def _detect_coding(cls,file_content):
-        result = chardet.detect( bytes(file_content) )
+        result = chardet.detect( bytes(file_content, encoding='utf-8' ) )
         return result.get('encoding')
 
     @classmethod
-    def create_fileobj (cls, file_path ):
+    def create (cls, file_path):
+        init_dic = {}   # 生成对象所需的初始信息
+        cls.counter += 1
+        init_dic['file'] = file_path
+        print ('%s-----处理%s'%(cls.counter,file_path) )
         with open(file_path,'r',encoding='utf-8') as file:
             content = file.read()
             coding = cls._detect_coding(content)
+            init_dic['coding'] = coding
             for reg_type in cls.register_ftype:
                 result = cls._judge_file_type(content, reg_type)
+
                 if result:
-                    return reg_type(file_path,coding,result)
-            return None
+
+                    init_dic.update(result)
+                    return reg_type(init_dic)
+            #  不行就返回基本类型
+            return BaseFILE(init_dic)
 
 
 
@@ -172,20 +142,6 @@ class FileCreater:
 
 
 if __name__ == '__main__':
-    li = []
-    path = unicode(r'D:\0.12.1-190108-to肖耀\新建文本文档.txt','utf-8')
-    a,b = check_type(path)
-    # li.append( SqlProcedure( a,b ) )
-    # path = unicode(r'D:\0.12.1-190108-to肖耀\新建文本文档2.txt', 'utf-8')
-    # a, b = check_type(path)
-    # li.append(SqlProcedure(a, b))
-    # path = unicode(r'D:\0.12.1-190108-to肖耀\新建文本文档3.txt', 'utf-8')
-    # a, b = check_type(path)
-    # li.append(SqlProcedure(a, b))
-    # path = unicode(r'D:\0.12.1-190108-to肖耀\新建文本文档4.txt', 'utf-8')
-    # a, b = check_type(path)
-    # li.append(SqlProcedure(a, b))
-    #
-    # obj = ManagerSqlFile(li)
-    # obj.depend_sort()
-    # print(obj.procudure )
+    file_path = r'D:\0.12.1-190108-to肖耀\新建文本文档.txt'
+    b = FileFactory.create(file_path)
+    print(b)
