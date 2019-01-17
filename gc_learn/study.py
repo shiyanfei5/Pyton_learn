@@ -6,17 +6,16 @@ import time
 
 
 #
-# import atexit
+import atexit
 # def _python_exit():
 #     print("called python exit")
 #     print(threading.active_count())
 #     print('exit thread is {}'.format(threading.get_ident()))
 
-# atexit.register(_python_exit)
+atexit.register(_python_exit)
 # gc.set_debug(gc.DEBUG_STATS|gc.DEBUG_LEAK)
 
-def fun(ref,value):
-    print('func thread is {}'.format(threading.get_ident()))
+
     # while True:
     #     print(value)
     #     if value[0] is not None:
@@ -29,7 +28,10 @@ def fun(ref,value):
     #         break
 
 
-
+def fun(ref,value):
+    b = A(2)
+    time.sleep(500)
+    print('func thread is {}'.format(threading.get_ident()))
 
 class A(object):
     def __init__(self,value):
@@ -44,17 +46,16 @@ class A(object):
             print("callback is called--value is {}".format(b))
 
 
-        thread_1 = threading.Thread( target = fun , args=(weakref.ref(self, callback), self.value))
+        thread_1 = threading.Thread\
+            ( target = fun , args=(weakref.ref(self, callback), self.value))
         thread_1.setDaemon(type)
         thread_1.start()
-
 
 
 
 print('main thread is {}'.format(threading.get_ident()) )
 a = A(1)
 a.Impl(False)
-
-time.sleep(5)
+time.sleep(3)
 del a
 print(threading.active_count())
