@@ -11,8 +11,9 @@ def func():
     while True:
         if semaphore.acquire():
             print(threading.currentThread().getName() + ' get semaphore')
+            time.sleep(3)
         semaphore.release()
-        time.sleep(3)
+
 
 
 for i in range(4):
